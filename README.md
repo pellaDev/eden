@@ -1,5 +1,8 @@
-# Eden
+<p align="center">
+  <img src="webui/public/logo.svg" width="240" alt="Eden logo" />
+</p>
 
+# Eden
 Eden decides which of your Nord Meshnet devices can reach which services on your computer, and nothing else.
 
 Meshnet connects your devices, but by default every device you link can reach everything listening on your
