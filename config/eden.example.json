@@ -1,0 +1,6 @@
+{
+  "remote_port": 8443,
+  "ui": {"theme": "dark", "field_style": "fill", "language": "en"},
+  "services": [],
+  "devices": []
+}

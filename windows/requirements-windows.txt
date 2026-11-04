@@ -1,0 +1,7 @@
+# Python packages of the Windows edition (the elevated helper needs none: it uses only the standard library).
+fastapi>=0.110
+uvicorn>=0.27
+pydantic>=2
+psutil>=5.9
+pyotp>=2.9
+qrcode[pil]>=7.4

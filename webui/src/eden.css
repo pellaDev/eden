@@ -1,0 +1,30 @@
+   Layout fixes for the PDS ScrollArea (Radix underneath). Imported after the PDS stylesheet in main.tsx.
+   This is plain CSS processed by Vite: unlike utility classes in JSX, it is not limited to what the
+   prebuilt PDS bundle already contains. */
+
+/* Radix wraps the scrolled content in an inline "display: table; min-width: 100%" div, which breaks
+   percentage widths and text wrapping. Make it a block-level flex column that fills the viewport height
+   (the inline style needs !important to be overridden). */
+.eden-scroll [data-radix-scroll-area-viewport] > div {
+  display: flex !important;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* Height-capped scroll area (the audit log): the viewport grows with its content up to the cap, then scrolls. */
+.eden-scroll-capped [data-radix-scroll-area-viewport] {
+  max-height: var(--eden-scroll-max, 60vh);
+}
+
+/* The logo on the Home page fades in from 100% transparent to 0% transparent. "both" keeps it invisible during the
+   delay and opaque afterwards. Users who ask for reduced motion get the logo at once. */
+.eden-fade-in {
+  animation: eden-fade-in 2.5s ease-out 0.2s both;
+}
+@keyframes eden-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eden-fade-in { animation: none; }
+}

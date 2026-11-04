@@ -1,0 +1,66 @@
+# Tests of the parts that have no machine-specific dependency: the shared policy, and the Windows edition (its tests
+# use fakes for PowerShell, the pipe and the operating system, so they also run on Linux). The web UI is type-checked
+# and built. Nothing here needs secrets.
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Policy tests
+        run: python core/test_eden_policy.py
+      - name: Windows edition tests
+        working-directory: windows
+        run: |
+          python test_eden_winfw.py
+          python test_eden_winhelper.py
+          python test_eden_winctl.py
+          python test_eden_launcher.py
+          python test_eden_platform.py
+          python test_install_scripts.py
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Linux edition tests
+        run: |
+          python bin/eden_ctl/test_nord_cli.py
+          python tests/run_all.py
+      - name: Shell scripts parse
+        run: |
+          bash -n start.sh
+          bash -n install.sh
+          bash -n uninstall.sh
+
+  webui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm build
