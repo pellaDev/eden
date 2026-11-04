@@ -1446,7 +1446,10 @@ def touch_ui():
 
 
 def ui_open():
-    return time.monotonic() - _ui_seen < UI_OPEN_SECONDS
+    # _ui_seen is 0.0 until the first request, meaning never. Comparing against 0
+    # as an instant is true on a machine younger than UI_OPEN_SECONDS since boot
+    # (time.monotonic runs from boot): the gate must report closed, never seen.
+    return bool(_ui_seen) and time.monotonic() - _ui_seen < UI_OPEN_SECONDS
 
 
 def monitor_settings():
