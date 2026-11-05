@@ -13,7 +13,7 @@ import eden_winhelper as hp  # noqa: E402
 
 TASK_NAME = "Eden helper"     # the scheduled task the install script creates (highest privileges, run on demand)
 START_PAUSE = 30.0            # seconds: do not ask the task scheduler again sooner than this (no task = nothing to wait for)
-_last_start = [0.0]
+_last_start = [0.0]             # 0.0 = never asked the scheduler
 
 
 def start_task():
@@ -42,7 +42,9 @@ def call(cmd, address=hp.PIPE, family=None, key=None, env=None, starter=None, wa
         except (OSError, EOFError, connection.AuthenticationError, hp.HelperError) as e:
             # Only "nobody is listening" is worth a start: a wrong key or a missing key file will not fix itself.
             waiting = isinstance(e, (OSError, EOFError)) and not isinstance(e, connection.AuthenticationError)
-            if waiting and starter and not started and time.monotonic() - _last_start[0] > START_PAUSE:
+            # 0.0 means never. Comparing it against monotonic() as an instant is false on a machine
+            # younger than START_PAUSE since boot: the first call must always be allowed to start the task.
+            if waiting and starter and not started and (not _last_start[0] or time.monotonic() - _last_start[0] > START_PAUSE):
                 _last_start[0] = time.monotonic()
                 started = bool(starter())
                 deadline = time.monotonic() + wait if started else None
