@@ -1,4 +1,7 @@
 # Python packages of the Windows edition (the elevated helper needs none: it uses only the standard library).
+#
+# Same rule as requirements.txt: a floor, not a pin. The only package here that wants a compiler is the image one
+# pulled by qrcode[pil]; if a build-script policy refuses it, approve that package and install again.
 fastapi>=0.110
 uvicorn>=0.27
 pydantic>=2

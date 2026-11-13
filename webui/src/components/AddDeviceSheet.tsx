@@ -56,6 +56,12 @@ export default function AddDeviceSheet({
               <div>
                 <Field size={fieldSize} label={t("addDevice.addressLabel")} value={address} inputMode="decimal" onChange={(e) => setAddress(e.target.value)} />
                 <p className="text-xs" style={{ opacity: 0.7 }}>{t("addDevice.addressHelp")}</p>
+                <Alert>
+                  <Info size={16} />
+                  {/* On Windows the address is the whole identity of the device (no peer list, no public key), and
+                      Nord can give a device a different address later: say it here, where the user is typing it. */}
+                  <AlertDescription>{t("addDevice.addressIdentity")}</AlertDescription>
+                </Alert>
               </div>
               <div>
                 <Field size={fieldSize} label={t("common.name")} value={name} onChange={(e) => setName(e.target.value.toLowerCase())} />

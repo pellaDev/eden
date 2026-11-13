@@ -12,6 +12,9 @@
 #   %ProgramData%\Eden\helper.key      shared secret of the pipe, readable by the installing user and administrators
 #   %ProgramData%\Eden\helper.log      what the helper did (appended)
 #
+# EDEN_WIN_DATA points at this folder for both sides. A sandbox test must set it in the HELPER's own environment:
+# the client uses the dict only to locate helper.key, while this process reads its own os.environ.
+#
 # Commands (one dict per request: {"cmd": ..., ...}; the answer is {"ok": true, ...} or {"ok": false, "error": text}):
 #   ping                               alive; returns the Meshnet adapter name and address (or null when Meshnet is off)
 #   ports-list                         the ports Eden may open
@@ -36,9 +39,9 @@ import eden_winfw as fw  # noqa: E402
 PIPE = r"\\.\pipe\eden-helper"
 DEFAULT_ALLOWED_PORTS = (8443,)   # Eden remote (login + TOTP); everything else must be listed in the file
 MAX_ALLOWED_PORTS = 64
-MAX_PAIRS = 256
+MAX_PAIRS = 32   # the shared ceiling: same value as core/eden_policy.MAX_RULES, so the two editions
+                   # refuse exactly the same configuration (a test in core/test_eden_policy.py checks they agree)
 MESH_NET = ipaddress.ip_network("100.64.0.0/10")
-DEFAULT_ALIAS = "NordLynx"        # used by the guard when Meshnet is off and no adapter can be found
 SAFE_PRINCIPALS = ("NT AUTHORITY\\SYSTEM", "BUILTIN\\ADMINISTRATORS", "NT SERVICE\\TRUSTEDINSTALLER")
 READ_ONLY_RIGHTS = {"R", "RX", "GR", "GE", "RC", "S", "REA", "RA", "X", "RD"}
 INHERIT_FLAGS = {"I", "OI", "CI", "IO", "NP"}
@@ -71,14 +74,17 @@ def acl_problem(icacls_output, path=None):
     found = False
     for raw in icacls_output.splitlines():
         line = raw.strip()
-        if not line or line.lower().startswith("successfully processed"):
+        if not line:
             continue
         if path and line.startswith(path):
             line = line[len(path):].strip()   # the first line starts with the file's own path
-        # What is left is "<principal>:(<rights>)(<rights>)..."
+        # What is left is "<principal>:(<rights>)(<rights>)...". A line that is not an ACE is skipped, never read as
+        # unsafe: the summary line icacls adds is translated on a localized Windows, and trusting its English wording
+        # would refuse a perfectly safe file. Nothing is accepted on trust either way - with no ACE at all the answer
+        # below is still "the ACL is empty" (fail closed).
         m = re.fullmatch(r"(.+?):((?:\([A-Za-z,]+\))+)", line)
         if not m:
-            return f"cannot read the ACL line: {line}"
+            continue
         principal = m.group(1).strip()
         found = True
         if principal.upper() in SAFE_PRINCIPALS:
@@ -137,6 +143,10 @@ class Helper:
     def allowed(self):
         path = self.ports_file()
         return read_allowed_ports(path, self.icacls(path) if os.path.exists(path) else "")
+
+    def key(self):
+        path = os.path.join(data_dir(self.env), "helper.key")
+        return read_key(self.env, self.icacls(path) if os.path.exists(path) else "")
 
     def mesh_adapter(self):
         """(alias, address) of the Meshnet adapter, or None while Meshnet is off. Found by its 100.64.0.0/10 address."""
@@ -213,7 +223,11 @@ class Helper:
             return {"ok": True, "applied": len(pairs)}
         if cmd == "guard":
             adapter = self.mesh_adapter()
-            self.powershell_set(fw.guard_rules(), adapter[0] if adapter else DEFAULT_ALIAS)
+            if adapter is None:
+                # Rules bound to a guessed adapter name are not the guard: they could sit on the wrong interface
+                # while the real Meshnet interface stays open. Refuse instead of guessing.
+                raise HelperError("Meshnet is off: no adapter with a 100.64.0.0/10 address, refusing to guess")
+            self.powershell_set(fw.guard_rules(), adapter[0])
             log("guard", self.env)
             return {"ok": True}
         if cmd == "remove":
@@ -225,27 +239,67 @@ class Helper:
         raise HelperError(f"unknown command {cmd!r}")
 
 
-def read_key(env=None):
-    with open(os.path.join(data_dir(env), "helper.key"), "rb") as f:
-        key = f.read().strip()
+def read_key(env=None, icacls_output=None):
+    """The pipe's shared secret. A file anyone can read is not a secret, so the same ACL rule as allowed_ports
+    applies: only the owner and the safe principals may hold it, and any other ACE is read-only. `icacls_output` is
+    injected by the tests; on a real Windows it comes from icacls.exe, so the check simply does not run elsewhere."""
+    path = os.path.join(data_dir(env), "helper.key")
+    if icacls_output is None and os.name == "nt":
+        icacls_output = run_icacls(path)
+    if icacls_output:
+        problem = acl_problem(icacls_output, path)
+        if problem:
+            raise HelperError(f"{path} is not safe: {problem}")
+    try:
+        with open(path, "rb") as f:
+            key = f.read().strip()
+    except OSError as e:
+        raise HelperError(f"cannot read {path}: {e}") from None
+    if not isinstance(key, bytes):
+        raise HelperError("helper.key must be read as bytes")
     if len(key) < 32:
         raise HelperError("helper.key is too short")
     return key
 
 
-def serve(address=PIPE, family=None, key=None, helper=None, stop=None):
-    """Answer requests until `stop` (a threading.Event) is set, or forever. One request per connection."""
+def serve(address=PIPE, family=None, key=None, helper=None, stop=None, ready=None):
+    """Answer requests until `stop` (a threading.Event) is set, or forever. One request per connection.
+    `ready` (a threading.Event) is set as soon as the listener is up, so a caller - a test, or the install script -
+    can tell "not started" from "started and answering", which a pipe name cannot show by looking at the filesystem.
+
+    The key is read inside the same fail-closed handling as every command, and a request that raises anything is
+    answered with an error instead of ending the loop: a listener thread that dies leaves the scheduled task as a
+    zombie process with no listener and no reported error."""
     helper = helper or Helper()
-    key = key or read_key(helper.env)
     family = family or ("AF_PIPE" if os.name == "nt" else "AF_UNIX")
-    with connection.Listener(address, family, authkey=key) as listener:
+    try:
+        key = key or helper.key()
+        listener = connection.Listener(address, family, authkey=key)
+        if ready:
+            ready.set()
+    except Exception as e:
+        log(f"listener cannot start: {e!r}", helper.env)
+        sys.exit(f"eden_winhelper: the listener cannot start: {e}")
+    try:
         while not (stop and stop.is_set()):
             try:
                 with listener.accept() as conn:
-                    request = conn.recv()
-                    conn.send(helper.handle(request))
+                    try:
+                        request = conn.recv()
+                    except (connection.AuthenticationError, EOFError, OSError):
+                        continue   # a wrong key or a dropped client: next one
+                    try:
+                        conn.send(helper.handle(request))
+                    except Exception as e:
+                        log(f"request failed: {e!r}", helper.env)
+                        try:
+                            conn.send({"ok": False, "error": f"helper error: {e}"})
+                        except Exception:
+                            pass   # the client is already gone; the listener must survive
             except (connection.AuthenticationError, EOFError, OSError):
                 continue   # a wrong key or a dropped client: next one
+    finally:
+        listener.close()
 
 
 if __name__ == "__main__":

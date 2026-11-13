@@ -249,10 +249,17 @@ class Launcher:
         return True
 
     def vpn_down(self):
-        self.winctl("deny-all")        # first: nothing may be reachable while the listeners go away
+        # The rules go first: nothing may be reachable while the listeners go away. A failure here is reported, not
+        # swallowed - if the guard rules were not applied the machine is not down, and claiming it is would be worse
+        # than failing, because the guard state is exactly what the user relies on.
+        blocked = self.winctl("deny-all")
         self.remote_down()
         self.forward_down()
         self.out("== leftovers (VPN) ==")
+        if not blocked:
+            self.out("FAILED: the guard rules were not applied, Eden rules may still be open")
+            self.out("check them: Get-NetFirewallRule -Group Eden (remove them with Remove-EdenRules)")
+            return False
         self.out("(Meshnet itself is switched off in the Nord app; the Eden rules stay in the guard state)")
         return True
 

@@ -19,15 +19,18 @@ closed, including after a crash: if anything fails, Eden closes everything inste
 - **Live traffic** per device and e-mail notifications for logins and changes.
 - **On demand.** Eden runs when you start it and removes its rules when you stop it. Nothing starts at boot.
 
-> **Status: pre-release.** Eden works on the author's machines. The Windows edition is new and has had little
-> testing. Read [docs/security-model.md](docs/security-model.md) before you rely on it.
+> **Status: 0.1.1, the first stable release.** Eden runs on the author's machines: Fedora Linux with Nord 6.0.2, and
+> Windows 11 (build 26300) with the Nord app. These are the two machines the fixes of this release came from. The
+> Windows edition is newer and has had less testing on real machines than the Linux one, so the live checks of the
+> elevated helper, the scheduled task and the uninstall path are still open. Read
+> [docs/security-model.md](docs/security-model.md) before you rely on it.
 
 ## Requirements
 
 | | Linux | Windows |
 |---|---|---|
 | System | A recent Linux with systemd and nftables | Windows 11 |
-| Nord | NordVPN app with Meshnet (Nord 6.x tested) | NordVPN app with Meshnet |
+| Nord | The Nord CLI with Meshnet (Nord 6.x tested). **The GUI app is not required** | The NordVPN app with Meshnet (there is no Nord command line on Windows) |
 | Python | 3.10 or newer | 3.11 or newer, installed for all users |
 | Other | `sudo`, Node 20+ and pnpm to build the web UI | none to run |
 
@@ -38,7 +41,17 @@ Eden does not replace the Nord app and does not route your traffic through Nord.
 - Linux: [docs/linux.md](docs/linux.md) (`./install.sh`, then `./start.sh`)
 - Windows: [docs/windows.md](docs/windows.md) (two PowerShell scripts, then `python windows\eden.py`)
 
+**On Linux the Nord GUI app is not needed and it is better not to install it.** Eden only needs the Nord command line
+and its daemon (`nordvpnd`): the GUI adds a tray icon, a window and a system service that Eden never uses, so leaving
+it out keeps the install slim. The Nord command line works without it (`nordvpn account status`, the socket, the group).
+On Windows the Nord app is required, because there is no Nord command line.
+
 Then open `http://127.0.0.1:8780`, add a device, add a service, and give the device access to it.
+
+**Installing with an agent:** if a model runs the installation, follow
+[docs/agent-install.md](docs/agent-install.md) — it gives the exact order of the steps, the conditions to stop on, and
+the difference between a fact and a guess. [AGENTS.md](AGENTS.md) at the root of the repository is the short version of
+the same rules for the agent.
 
 ## How it works, in one paragraph
 
@@ -53,6 +66,7 @@ a port you did not allow. [docs/how-it-works.md](docs/how-it-works.md) has the d
 - [How it works](docs/how-it-works.md)
 - [Security model and limits](docs/security-model.md)
 - [Linux](docs/linux.md), [Windows](docs/windows.md)
+- [Install guide for an agent](docs/agent-install.md)
 - [Third-party software](docs/THIRD-PARTY.md)
 - [Reporting a vulnerability](SECURITY.md)
 
@@ -62,7 +76,7 @@ a port you did not allow. [docs/how-it-works.md](docs/how-it-works.md) has the d
 pip install -r requirements.txt
 python tests/run_all.py                # Linux edition
 python core/test_eden_policy.py        # the policy shared by both editions
-cd windows && python test_eden_winfw.py && python test_eden_winhelper.py   # Windows edition, runs on any system
+cd windows && python run_all.py                      # Windows edition: every file, one per process
 cd webui && pnpm install && pnpm exec tsc --noEmit && pnpm build
 ```
 

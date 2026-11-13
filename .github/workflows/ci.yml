@@ -22,13 +22,7 @@ jobs:
         run: python core/test_eden_policy.py
       - name: Windows edition tests
         working-directory: windows
-        run: |
-          python test_eden_winfw.py
-          python test_eden_winhelper.py
-          python test_eden_winctl.py
-          python test_eden_launcher.py
-          python test_eden_platform.py
-          python test_install_scripts.py
+        run: python run_all.py
 
   linux:
     runs-on: ubuntu-latest

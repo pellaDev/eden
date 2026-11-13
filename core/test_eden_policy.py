@@ -50,6 +50,19 @@ def test_core_is_pure():
     assert names <= PURE_IMPORTS, f"eden_policy imports {sorted(names - PURE_IMPORTS)}"
 
 
+def test_rule_ceiling_is_the_same_on_both_editions():
+    """The two helpers state the same ceiling. They are installed standalone and cannot import core, so the value is
+    written down twice here and checked instead of imported: a change in one edition must be a deliberate change in
+    both."""
+    import re
+    root = os.path.dirname(HERE)
+    for rel, name in (("bin/eden_helper/eden_helper.py", "MAX_RULES"), ("windows/eden_winhelper.py", "MAX_PAIRS")):
+        text = open(os.path.join(root, rel), encoding="utf-8").read()
+        m = re.search(rf"^{name} = (\d+)", text, re.M)
+        assert m, f"{rel} does not state {name}"
+        assert int(m.group(1)) == p.MAX_RULES, f"{rel} says {m.group(1)}, the shared ceiling is {p.MAX_RULES}"
+
+
 def test_pairs():
     ips, pairs = p.compute_pairs(config(), devices(), ALLOWED)
     assert ips == {"laptop": "100.64.0.10", "guest": "100.64.0.20"}

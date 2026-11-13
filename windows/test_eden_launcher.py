@@ -1,5 +1,6 @@
 # Tests of the Windows launcher (eden.py) with a fake operating-system layer. Run: python3 test_eden_launcher.py
 import os
+import sys
 import tempfile
 
 import eden as e
@@ -83,6 +84,19 @@ def test_vpn_down_blocks_first_then_stops():
     assert calls == ["deny-all"] and not lt.alive("eden_remote") and not lt.alive("eden_forward") and not s.procs
 
 
+def test_vpn_down_reports_a_failed_guard():
+    # The guard state is what the user relies on after a failure: when the rules could not be applied, down()
+    # must say so and fail, not answer True.
+    lt, s, out, calls = launcher()
+    lt.vpn_up()
+    calls.clear()
+    out.clear()
+    lt.winctl = lambda cmd: (calls.append(cmd), False)[1]      # the helper is unreachable
+    assert not lt.vpn_down()
+    assert calls == ["deny-all"] and not s.procs
+    assert any("guard rules were not applied" in x for x in out)
+
+
 def test_stale_pid_is_not_trusted():
     lt, s, _, _ = launcher()
     open(lt.pid_file("eden_remote"), "w").write("999")             # no such process
@@ -133,8 +147,17 @@ def test_foreground_restart_request_and_teardown():
 
 
 if __name__ == "__main__":
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
+    tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
+    failed = []
+    for name, fn in tests:
+        try:
             fn()
             print("ok", name)
+        except Exception as e:
+            failed.append(name)
+            print(f"FAIL {name}: {e!r}")
+    if failed:
+        # Stopping at the first failure hid every test after it and left the exit code at 0, so a runner could not
+        # tell a pass from a broken suite.
+        sys.exit(f"{len(failed)} of {len(tests)} failed: {', '.join(failed)}")
     print("ALL WINDOWS LAUNCHER TESTS PASSED")

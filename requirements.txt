@@ -1,5 +1,13 @@
 # Python packages of the Linux edition (the root helper and the launcher need none). The Windows edition has its own
 # list in windows/requirements-windows.txt.
+#
+# Every line is a floor, not a pin: a newer package is allowed on purpose so security fixes arrive without waiting for
+# this project. Nothing here is frozen, so the exact versions you get are not the ones this was last run against. If
+# something misbehaves after an install, write down the versions you have (pip list) and compare them with the code
+# before reporting a bug; pin one package with == only when a specific version is known to break.
+#
+# Nothing installs itself at build time here (no package needs a compiler), so a recent pnpm/npm rule about refusing
+# build scripts does not apply to these requirements.
 fastapi>=0.110
 uvicorn>=0.27
 pydantic>=2

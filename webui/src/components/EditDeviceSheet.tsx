@@ -1,6 +1,7 @@
 // "Edit device": name and picture. A device is identified by its public key, which is shown but cannot
 // change: renaming is cosmetic and keeps every permission. The form is put back to the device when the sheet closes.
 import { useRef, useState } from "react";
+import { Info } from "lucide-react";
 import { Alert, AlertDescription } from "@workspace/pds/components/ui/alert";
 import { Button } from "@workspace/pds/components/ui/button";
 import { Radio } from "@workspace/pds/components/ui/radio";
@@ -131,6 +132,15 @@ export default function EditDeviceSheet({
               {device.public_key}
             </div>
           </div>
+
+          {device.public_key.startsWith("addr:") && (
+            // A Windows device is identified by this address alone. If Nord reassigns it, the permissions follow the
+            // old number and the device stops working: the warning belongs here, next to the identity.
+            <Alert>
+              <Info size={16} />
+              <AlertDescription>{t("editDevice.addressIdentity")}</AlertDescription>
+            </Alert>
+          )}
 
           {serverError && (
             <Alert variant="destructive">

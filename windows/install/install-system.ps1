@@ -22,14 +22,22 @@ function Lock($path, $extra) {
 }
 
 $me = [Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not ([Security.Principal.WindowsPrincipal]$me).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Fail 'run this from an elevated PowerShell (right click, Run as administrator).'
-}
+
+# The cheap checks come first, before the elevation one: on a single-user machine the wrong Python is the most common
+# reason this script fails, and it is better to hear both problems in one run than to be sent back to an elevated
+# window twice for the same attempt.
 if ([Environment]::OSVersion.Version.Build -lt 22000) { Fail 'Eden for Windows needs Windows 11.' }
 
-# --- the Python the elevated helper runs with
+# --- the Python the elevated helper runs with: an all-users install first, because that is the only kind an elevated
+# process may run from; a single-user machine usually has a per-user one on PATH, so the order matters and the reason
+# for a rejection is spelled out below.
+if (-not $Python) {
+    $found = Get-ChildItem (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Python*') -Filter 'python.exe' -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if ($found) { $Python = $found.FullName }
+}
 if (-not $Python) { $cmd = Get-Command python.exe -ErrorAction SilentlyContinue; if ($cmd) { $Python = $cmd.Source } }
-if (-not $Python -or -not (Test-Path $Python)) { Fail 'Python 3 was not found. Install it from python.org with "Install for all users", or pass -Python <path to python.exe>.' }
+if (-not $Python -or -not (Test-Path $Python)) { Fail 'Python 3.11 or newer was not found. Install it from python.org with "Install for all users", or pass -Python <path to python.exe>.' }
 $Python = (Resolve-Path $Python).Path
 $userAreas = @($env:USERPROFILE, $env:LOCALAPPDATA, $env:APPDATA, $env:TEMP) | Where-Object { $_ }
 foreach ($area in $userAreas) {
@@ -42,6 +50,11 @@ $ver = & $Python -c 'import sys; print("%d.%d" % sys.version_info[:2])'
 if ([version]$ver -lt [version]'3.11') { Fail "Python $ver is too old: 3.11 or newer is needed." }
 $pythonw = Join-Path (Split-Path $Python) 'pythonw.exe'
 if (-not (Test-Path $pythonw)) { $pythonw = $Python }
+
+# Only now the elevation: everything cheap has already been answered, so a failure here is the only remaining one.
+if (-not ([Security.Principal.WindowsPrincipal]$me).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Fail 'run this from an elevated PowerShell (right click, Run as administrator).'
+}
 
 # --- the helper's own folder
 $source = Split-Path $PSScriptRoot -Parent          # the windows\ folder of this Eden tree

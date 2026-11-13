@@ -273,8 +273,14 @@ def cmd_nft_final(_):
         ips, pairs = compute_rules(config, live_peers())
     except PolicyError as e:
         fail_closed(e)
+    # An empty configuration is a legitimate state, not a failure: nothing is exposed, the guard table already
+    # drops everything. Exiting non-zero here used to deadlock a fresh install - the device list needs the daemon
+    # and Meshnet up, and vpn-up tore the whole VPN group down, so no device could ever be added. Same shape as
+    # cmd_reload: guard table, no rules, exit 0.
     if not ips:
-        sys.exit("eden_ctl: no enabled device resolved, keeping the guard table")
+        write_forward([])
+        print("final table loaded: no enabled device yet, guard table only (drop-all), nothing exposed")
+        return
 
     allowed = allowed_ports()
 

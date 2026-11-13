@@ -1,6 +1,7 @@
 # The install scripts cannot run here (no PowerShell), so this checks that what they hard-code matches the Python
 # side: task name, file names, firewall group, data folder, helper entry point. Run: python3 test_install_scripts.py
 import os
+import sys
 import re
 
 import eden_winclient as client
@@ -41,8 +42,17 @@ def test_scripts_are_careful():
 
 
 if __name__ == "__main__":
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
+    tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
+    failed = []
+    for name, fn in tests:
+        try:
             fn()
             print("ok", name)
-    print("INSTALL SCRIPT CHECKS PASSED")
+        except Exception as e:
+            failed.append(name)
+            print(f"FAIL {name}: {e!r}")
+    if failed:
+        # Stopping at the first failure hid every test after it and left the exit code at 0, so a runner could not
+        # tell a pass from a broken suite.
+        sys.exit(f"{len(failed)} of {len(tests)} failed: {', '.join(failed)}")
+    print("ALL INSTALL SCRIPT TESTS PASSED")

@@ -102,6 +102,17 @@ except SystemExit as e: assert str(e.code).startswith("eden_ctl: refused"), e.co
 assert calls == [("fwd", []), ("nft-load",)], calls
 print("fail_closed ok")
 
+# empty configuration: a legitimate state, not a failure - guard table, no routes, exit 0.
+# (It used to exit non-zero, which deadlocked a fresh install: no device could ever be added.)
+calls2 = []
+c.write_forward = lambda r: calls2.append(("fwd", r)); c.helper = lambda *a: calls2.append(a)
+c.load_config = lambda: {"remote_port": 8443, "services": [], "devices": []}
+c.live_peers = lambda: []
+with contextlib.redirect_stdout(io.StringIO()) as out: c.cmd_nft_final(None)
+assert calls2 == [("fwd", [])], calls2
+assert "no enabled device" in out.getvalue(), out.getvalue()
+print("empty config ok:", out.getvalue().strip())
+
 # sync_incoming: commands issued + read-back
 issued = []
 state = {}

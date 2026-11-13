@@ -54,7 +54,8 @@ status() {
   echo "-- Eden local --"
   alive eden_local && echo "eden_local: running (http://127.0.0.1:$EDEN_LOCAL_PORT/)" || echo "eden_local: stopped"
   echo "-- VPN --"
-  pgrep -q nordvpnd && echo "nordvpnd: running" || echo "nordvpnd: stopped"
+  # pgrep -q is not accepted by procps-ng 4.0.6 (only --quiet): redirect the output instead, which works on every version.
+  pgrep -x nordvpnd >/dev/null && echo "nordvpnd: running" || echo "nordvpnd: stopped"
   ip -br addr show "$MESH_IFACE" &>/dev/null && echo "$MESH_IFACE: up" || echo "$MESH_IFACE: down"
   alive eden_remote && echo "eden_remote: running" || echo "eden_remote: stopped"
   alive eden_forward && echo "eden_forward: running" || echo "eden_forward: stopped"

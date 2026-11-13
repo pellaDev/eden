@@ -18,6 +18,12 @@ class PolicyError(Exception):
     """The configuration would break an untrusted-device rule: nothing may be opened."""
 
 
+MAX_RULES = 32   # the ceiling on the pairs one machine may open, the same number for both editions. Each helper is
+                 # installed as a standalone copy (sudo runs it from /usr/local/libexec, the scheduled task from
+                 # %ProgramData%) and cannot import this file, so each writes the value down and
+                 # test_eden_policy.py checks the three agree.
+
+
 def flag_untrusted(dev):
     """The device's untrusted flag in the config. Fail closed: anything but false (true, null, garbage) means
     untrusted; a missing flag is a trusted device created before the feature existed."""
