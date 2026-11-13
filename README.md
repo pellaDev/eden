@@ -11,7 +11,7 @@ the family's apps, a local AI server — to the devices of the family, so they c
 house over NordVPN's Meshnet.
 
 <p align="center">
-  <a href="https://refer-nordvpn.com/wjDembjimAl"><strong>Get NordVPN with my referral link — a discount for you, a commission for me</strong></a>
+  <a href="https://refer-nordvpn.com/tcYlzuNEZLv"><strong>Get NordVPN with my referral link — a discount for you, a commission for me</strong></a>
 </p>
 
 Signing up through that link gives you a discount and generates a commission for me: it is my personal referral link,
