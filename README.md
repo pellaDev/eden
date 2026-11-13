@@ -5,6 +5,19 @@
 # Eden
 Eden decides which of your Nord Meshnet devices can reach which services on your computer, and nothing else.
 
+**Where this came from.** Eden started as a game: I wanted to show Jellyfin to my son. It then became an experiment
+to apply my own design system, and it is now a complete tool that serves the services we run locally — a media server,
+the family's apps, a local AI server — to the devices of the family, so they can be reached safely from outside the
+house over NordVPN's Meshnet.
+
+<p align="center">
+  <a href="https://refer-nordvpn.com/wjDembjimAl"><strong>Get NordVPN with my referral link — a discount for you, a commission for me</strong></a>
+</p>
+
+Signing up through that link gives you a discount and generates a commission for me: it is my personal referral link,
+not a sponsorship. Eden is an independent project, not affiliated with, endorsed by or sponsored by Nord Security, and
+the choice of the VPN provider is not influenced by the link.
+
 Meshnet connects your devices, but by default every device you link can reach everything listening on your
 computer. Eden turns that into a whitelist: each service (a media server, a notes app, a local AI server) is opened
 only to the devices you pick, one by one, with a switch per device and per service. Everything not on the list is
