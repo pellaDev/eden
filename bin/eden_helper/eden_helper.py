@@ -15,6 +15,7 @@
 #   nft-delete                        remove table "inet eden" (idempotent)
 #   nft-list                          print table "inet eden" (read only)
 #   ports-list                        print the ports Eden may open, one per line (read only)
+#   nordvpn-upgrade                 upgrade the nordvpn package from Nord's yum repository (dnf5)
 #
 # The allowed ports live in /etc/eden/allowed_ports (root-owned, edited with sudo): see PORTS_FILE.
 
@@ -29,6 +30,7 @@ import syslog
 # Absolute binaries: never resolved through the caller's PATH.
 SYSTEMCTL = "/usr/bin/systemctl"
 NFT = "/usr/sbin/nft"
+DNF = "/usr/bin/dnf5"
 
 NORD_UNITS_START = ("nordvpnd.socket", "nordvpnd.service")
 NORD_UNITS_STOP = ("nordvpnd.service", "nordvpnd.socket")
@@ -115,9 +117,9 @@ def load_allowed_ports():
     return _allowed_ports
 
 
-def run(argv, stdin=None):
+def run(argv, stdin=None, timeout=30):
     """Run a fixed command with a minimal environment."""
-    return subprocess.run(argv, input=stdin, text=True, capture_output=True, timeout=30,
+    return subprocess.run(argv, input=stdin, text=True, capture_output=True, timeout=timeout,
                           env={"PATH": "/usr/bin:/usr/sbin"})
 
 
@@ -202,6 +204,7 @@ def parse():
     sub.add_parser("nft-delete")
     sub.add_parser("nft-list")
     sub.add_parser("ports-list")
+    sub.add_parser("nordvpn-upgrade")
     return ap.parse_args()
 
 
@@ -248,6 +251,14 @@ def main():
         except ValueError as e:
             fail(str(e))
         print("\n".join(str(p) for p in sorted(ports)))
+
+    elif args.cmd == "nordvpn-upgrade":
+        # Upgrade only the nordvpn package, from Nord's own repository. The running daemon keeps the old
+        # binary until its next start; the new version takes effect then.
+        r = run([DNF, "--refresh", "-q", "upgrade", "nordvpn"], timeout=600)
+        if r.returncode:
+            fail(f"dnf5 upgrade failed: {(r.stderr or r.stdout).strip()[-400:]}")
+        log("OK nordvpn-upgrade")
 
 
 if __name__ == "__main__":

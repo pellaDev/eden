@@ -183,6 +183,23 @@ MESSAGES = {
         "en": "{count} failed attempts; locked for {minutes} minutes",
         "it": "{count} tentativi falliti; bloccato per {minutes} minuti",
     },
+    "update_check_failed": {
+        "en": "could not check for updates right now",
+        "it": "non riesco a controllare gli aggiornamenti in questo momento",
+    },
+    "update_in_progress": {"en": "an update is already in progress", "it": "un aggiornamento è già in corso"},
+    "update_download_failed": {
+        "en": "could not download the new version",
+        "it": "non sono riuscito a scaricare la nuova versione",
+    },
+    "nordvpn_not_installed": {
+        "en": "NordVPN is not installed on this machine",
+        "it": "NordVPN non è installato su questo computer",
+    },
+    "nordvpn_upgrade_failed": {
+        "en": "the NordVPN update failed: {detail}",
+        "it": "l'aggiornamento di NordVPN è fallito: {detail}",
+    },
 }
 
 

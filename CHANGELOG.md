@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 - updates from the web UI (2026-11-16)
+
+Eden and its NordVPN dependency can now be checked and updated without leaving the dashboard. No token or secret is
+involved: Eden reads the public repository, the NordVPN check reads the official package metadata over HTTPS.
+
+- Self-update (Linux edition): the installed version is compared with the latest GitHub release; on request the release
+  is downloaded, verified against a fixed layout and staged, then applied on the next start - the protected folders
+  (`data`, `config`, `secrets`, `env`) and `vars.env` are never touched. The page waits for the service to come back
+  and reloads itself.
+- NordVPN package updates: the installed version is compared with the latest in the official Nord yum repository, and
+  the upgrade runs through the root helper (dnf5). The running daemon keeps the old binary until its next start.
+- Settings: a new "Aggiornamenti" section with one row per component, each behind its own confirmation dialog.
+- Home: an amber banner when either update is available, dismissible per version pair.
+
 ## 0.1.1 - the first stable release (2026-11-13)
 
 The fixes from the two first real installs. `0.1.0` went out as a pre-release on 2026-11-04; this is the first release marked **stable**, and it is the version the documentation describes.

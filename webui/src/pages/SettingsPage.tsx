@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { RotateCw } from "lucide-react";
+import { ArrowUpCircle, RotateCw } from "lucide-react";
 import { Alert, AlertDescription } from "@workspace/pds/components/ui/alert";
 import { Button } from "@workspace/pds/components/ui/button";
 import { Card } from "@workspace/pds/components/ui/card";
@@ -21,6 +21,7 @@ import Feedback from "../components/Feedback";
 import PageStack from "../components/PageStack";
 import LiveSettings from "../components/LiveSettings";
 import RestartOverlay from "../components/RestartOverlay";
+import { updateStatus, type UpdateStatus } from "../lib/update";
 import ToggleRow from "../components/ToggleRow";
 
 type Enroll = {
@@ -65,6 +66,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
+  const [updates, setUpdates] = useState<UpdateStatus | null>(null);
+  const [updating, setUpdating] = useState<null | "eden" | "nordvpn">(null);
 
   // Theme and field style are also saved on the server (eden.json), because the login page on remote devices cannot read
   // this browser's storage. First visit: push what this browser already uses.
@@ -145,6 +148,45 @@ export default function SettingsPage() {
     setRestarting(false);
     setError(reason);
   }, []);
+
+  // Update checks (Eden itself + NordVPN). The backend caches the metadata, so a fresh fetch per visit is cheap.
+  const loadUpdates = useCallback(() => {
+    updateStatus().then(setUpdates).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    loadUpdates();
+  }, [loadUpdates]);
+
+  const edenUpdate = async () => {
+    setUpdating("eden");
+    setError(null);
+    try {
+      const r = await apiPost<{ ok: boolean; restarting: boolean }>("/update/eden");
+      if (r.restarting) setRestarting(true);
+      else {
+        toast({ description: t("settings.updateDone") });
+        loadUpdates();
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const nordvpnUpdate = async () => {
+    setUpdating("nordvpn");
+    setError(null);
+    try {
+      await apiPost<{ ok: boolean }>("/nordvpn/update");
+      toast({ description: t("settings.updateDone") });
+      loadUpdates();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   const enroll = remote?.enroll;
   const remaining = enroll ? Math.max(0, enroll.window_remaining - Math.floor((now - fetchedAt) / 1000)) : 0;
@@ -366,6 +408,66 @@ export default function SettingsPage() {
           </Card>
         </>
       )}
+      <h2 className="pt-4 text-sm font-semibold">{t("settings.updatesTitle")}</h2>
+      <Card>
+        <ItemGroup>
+          <Item size="sm">
+            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
+              <ItemTitle>{t("settings.edenUpdateTitle", { installed: updates?.eden.installed ?? "?" })}</ItemTitle>
+              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
+                {updates?.eden.available && updates.eden.latest
+                  ? t("settings.edenUpdateDescription", { latest: updates.eden.latest })
+                  : t("settings.updateUpToDate")}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              {updates?.eden.available && updates.eden.latest ? (
+                <Confirm
+                  title={t("settings.edenUpdateConfirmTitle", { latest: updates.eden.latest })}
+                  description={t("settings.edenUpdateConfirmDescription")}
+                  actionLabel={t("settings.updateAction")}
+                  onConfirm={edenUpdate}
+                  trigger={(open) => (
+                    <Button variant="default" size="small" disabled={busy || updating !== null} onClick={open}>
+                      <ArrowUpCircle /> {updating === "eden" ? t("settings.edenUpdating") : t("settings.updateAction")}
+                    </Button>
+                  )}
+                />
+              ) : (
+                <Tag variant="default">{t("settings.upToDate")}</Tag>
+              )}
+            </ItemActions>
+          </Item>
+          <ItemSeparator />
+          <Item size="sm">
+            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
+              <ItemTitle>{t("settings.nordvpnUpdateTitle", { installed: updates?.nordvpn.installed ?? "?" })}</ItemTitle>
+              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
+                {updates?.nordvpn.available && updates.nordvpn.latest
+                  ? t("settings.nordvpnUpdateDescription", { latest: updates.nordvpn.latest })
+                  : t("settings.updateUpToDate")}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              {updates?.nordvpn.available && updates.nordvpn.latest ? (
+                <Confirm
+                  title={t("settings.nordvpnUpdateConfirmTitle", { latest: updates.nordvpn.latest })}
+                  description={t("settings.nordvpnUpdateConfirmDescription")}
+                  actionLabel={t("settings.updateAction")}
+                  onConfirm={nordvpnUpdate}
+                  trigger={(open) => (
+                    <Button variant="default" size="small" disabled={busy || updating !== null} onClick={open}>
+                      <ArrowUpCircle /> {updating === "nordvpn" ? t("settings.nordvpnUpdating") : t("settings.updateAction")}
+                    </Button>
+                  )}
+                />
+              ) : (
+                <Tag variant="default">{t("settings.upToDate")}</Tag>
+              )}
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </Card>
       <Feedback error={error} />
       {restarting && <RestartOverlay onGiveUp={giveUpRestart} />}
     </PageStack>

@@ -68,6 +68,21 @@ nord() { # nordvpn CLI, through "sg nordvpn -c" while NORD_USE_SG=1
   if [[ "${NORD_USE_SG:-0}" == 1 ]]; then sg nordvpn -c "nordvpn $*"; else nordvpn "$@"; fi
 }
 
+# A self-update staged from the webui (see backend/eden_update.py) is applied here, before anything
+# starts: overlay copy of the staged tree over this folder (data/, config/, secrets/ and the venv are
+# never touched), then a quiet resync of the dependencies. Fail closed on a bad staging.
+apply_pending_update() {
+  local marker="$EDEN_RUN/update_request.json"
+  [[ -f "$marker" ]] || return 0
+  echo "applying staged update..."
+  if ! "$EDEN_VENV/bin/python" "$HERE/bin/eden_ctl/apply_update.py" "$marker" "$HERE"; then
+    echo "FAILED: applying the staged update (see log above); starting with the current files" >&2
+    return 1
+  fi
+  "$EDEN_VENV/bin/pip" install -q -r "$HERE/requirements.txt" || return 1
+  echo "update applied."
+}
+
 # Run one step of a group; on failure, tear down only that group (fail closed
 # per group, not the other one).
 step_vpn() {
@@ -202,6 +217,7 @@ vpn_reload() {
 
 
 up() {
+  apply_pending_update || return 1
   # Convenience: the VPN group and Eden local together, in one command - what a launcher or a double-click
   # shortcut should invoke. Each group still fails closed on its own; a local-UI failure after the VPN came up
   # leaves the VPN running (the groups stay independent).

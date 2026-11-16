@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Feedback from "../components/Feedback";
 import Logo from "../components/Logo";
 import TrafficChart from "../components/TrafficChart";
+import UpdateNotice from "../components/UpdateNotice";
 import { useHost } from "../lib/host";
 import { useT } from "../lib/i18n";
 import { useLive } from "../lib/live";
@@ -110,6 +111,10 @@ export default function Home() {
             </p>
           </Stack>
         </div>
+      </div>
+
+      <div style={fullRow}>
+        <UpdateNotice />
       </div>
 
       {live && (error ?? chartError) && (

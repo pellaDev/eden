@@ -66,6 +66,7 @@ import eden_i18n  # noqa: E402
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core"))
 from eden_policy import flag_untrusted  # noqa: E402  (shared with the Windows edition)
 import eden_monitor  # noqa: E402
+import eden_update  # noqa: E402
 
 app = FastAPI(title="Eden local")
 
@@ -647,6 +648,86 @@ def restart_eden():
         raise HTTPException(409, say("restart_unavailable"))
     # After the answer has gone out: this very process is one of the things the restart stops.
     threading.Timer(0.5, os.kill, (pid, signal.SIGUSR1)).start()
+    return {"ok": True}
+
+
+# ---- updates ---------------------------------------------------------------------
+# Eden self-update: the latest GitHub release is staged under $EDEN_RUN (eden_update.py) and a marker
+# is written; the foreground start.sh applies it at the next up() - an overlay copy that never touches
+# data/, config/, secrets/ or the venv. NordVPN: the check is plain HTTP + rpm, the upgrade itself goes
+# through the root helper (dnf5).
+UPDATE_MARKER = os.path.join(EDEN_RUN, "update_request.json")
+
+
+@app.get("/api/update/status")
+def update_status():
+    out = {"eden": {}, "nordvpn": {}}
+    try:
+        latest = eden_update.latest_eden_release()
+        installed = read_version()
+        out["eden"] = {
+            "installed": installed,
+            "latest": latest["tag"].lstrip("v"),
+            "available": eden_update.compare_versions(latest["tag"], installed) > 0,
+        }
+    except Exception as e:
+        out["eden"]["error"] = str(e) if isinstance(e, eden_update.UpdateError) else say("update_check_failed")
+    try:
+        inst = eden_update.installed_nordvpn_version()
+        if inst is None:
+            out["nordvpn"] = {"installed": None, "latest": None, "available": False}
+        else:
+            repo = eden_update.nordvpn_repo_latest()
+            out["nordvpn"] = {
+                "installed": inst["version"],
+                "latest": repo["version"],
+                "available": eden_update.nordvpn_update_available(inst, repo),
+            }
+    except Exception as e:
+        out["nordvpn"]["error"] = str(e) if isinstance(e, eden_update.UpdateError) else say("update_check_failed")
+    return out
+
+
+@app.post("/api/update/eden")
+def update_eden():
+    if os.path.exists(UPDATE_MARKER):
+        raise HTTPException(409, say("update_in_progress"))
+    try:
+        latest = eden_update.latest_eden_release()
+    except Exception:
+        raise HTTPException(502, say("update_check_failed"))
+    stage_root = os.path.join(EDEN_RUN, "stage-%d" % int(time.time()))
+    zip_path = os.path.join(stage_root, "release.zip")
+    try:
+        os.makedirs(stage_root)
+        with open(zip_path, "wb") as f:
+            f.write(eden_update.http_get(latest["zipball"], 120))
+        eden_update.stage_release(zip_path, os.path.join(stage_root, "tree"))
+    except Exception as e:
+        shutil.rmtree(stage_root, ignore_errors=True)
+        raise HTTPException(502, str(e) if isinstance(e, eden_update.UpdateError) else say("update_download_failed"))
+    os.remove(zip_path)
+    eden_update.write_marker(EDEN_RUN, latest["tag"], os.path.join(stage_root, "tree"))
+    pid = foreground_pid()
+    if pid is not None:
+        threading.Timer(0.5, os.kill, (pid, signal.SIGUSR1)).start()
+        return {"ok": True, "restarting": True, "tag": latest["tag"]}
+    return {"ok": True, "restarting": False, "tag": latest["tag"]}
+
+
+@app.post("/api/nordvpn/update")
+def nordvpn_update():
+    if eden_update.installed_nordvpn_version() is None:
+        raise HTTPException(409, say("nordvpn_not_installed"))
+    try:
+        r = subprocess.run(["sudo", "-n", EDEN_HELPER, "nordvpn-upgrade"], capture_output=True, text=True, timeout=620)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, say("nordvpn_upgrade_failed", detail="timeout"))
+    if r.returncode:
+        raw = (r.stderr or r.stdout).strip()
+        detail = raw.splitlines()[-1] if raw else ""
+        detail = detail.removeprefix("eden-helper: ").strip()[:300]
+        raise HTTPException(502, say("nordvpn_upgrade_failed", detail=detail))
     return {"ok": True}
 
 
