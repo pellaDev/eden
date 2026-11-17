@@ -190,6 +190,7 @@ def stage_release(zip_path, dest_dir):
             if perm:
                 os.chmod(target, perm)
     _validate_staged(dest_dir)
+    ensure_webui_built(dest_dir)
     return dest_dir
 
 
@@ -197,8 +198,39 @@ def _validate_staged(root):
     missing = [n for n in REQUIRED_TOP_LEVEL if not os.path.exists(os.path.join(root, n))]
     if missing:
         raise UpdateError("the release is missing required files: " + ", ".join(missing))
-    if not os.path.isdir(os.path.join(root, "webui", "dist")):
-        raise UpdateError("the release has no built webui (webui/dist)")
+
+
+def ensure_webui_built(root):
+    """Guarantee root/webui/dist exists: use it when shipped, otherwise build it in place with pnpm.
+
+    The published repo is source-only (webui/dist is a build artifact and is never committed), so the
+    staged tree usually needs a local build - the same step install.sh performs on a fresh install.
+    """
+    webui = os.path.join(root, "webui")
+    dist = os.path.join(webui, "dist")
+    if not os.path.isdir(dist):
+        if not os.path.isfile(os.path.join(webui, "package.json")):
+            raise UpdateError("the release has no webui to build (no webui/package.json)")
+        pnpm = shutil.which("pnpm")
+        if pnpm is None:
+            raise UpdateError(
+                "the release has no built webui (webui/dist) and this machine has no pnpm; "
+                "update manually: replace the files with the new tag, re-run install.sh and rebuild "
+                "the web UI (see docs/linux.md, 'Update')"
+            )
+        for cmd in (["install", "--frozen-lockfile"], ["build"]):
+            try:
+                r = subprocess.run([pnpm] + cmd, cwd=webui, capture_output=True, text=True, timeout=900)
+            except (OSError, subprocess.SubprocessError) as e:
+                raise UpdateError("the webui build could not start (" + " ".join(cmd) + "): " + str(e)) from e
+            if r.returncode != 0:
+                tail = "\n".join((r.stderr or r.stdout or "").strip().splitlines()[-5:])
+                raise UpdateError("the webui build failed (" + " ".join(cmd) + "): " + (tail or "no output"))
+        if not os.path.isdir(dist):
+            raise UpdateError("the webui build did not produce webui/dist")
+    # apply_update.py overlays the staged tree onto the Eden home additively: a node_modules here
+    # would be mixed into the home's own. Only the built dist is needed at apply time.
+    shutil.rmtree(os.path.join(webui, "node_modules"), ignore_errors=True)
 
 
 def write_marker(run_dir, tag, staging_dir):

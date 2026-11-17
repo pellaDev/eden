@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 - self-update on release installs (2026-11-17)
+
+### Self-update
+
+- "Update Eden" now works on trees installed from a GitHub release. The published repository is source-only (the built
+  web UI is never committed), so when the staged release does not ship `webui/dist`, Eden builds it in place with pnpm
+  before applying - the same step `install.sh` performs on a fresh install, using the lockfile as-is
+  (`--frozen-lockfile`). The dependency tree is removed from the staging area before apply, so an update never mixes
+  it into the installed copy.
+- If the machine has no pnpm, the update fails with an explanation of how to update manually instead of failing after
+  a long download.
+
 ## 0.3.0 - NordVPN install defaults, dev-tree status, PDS 2.0.1 (2026-11-17)
 
 ### NordVPN installation and lifecycle

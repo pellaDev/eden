@@ -120,6 +120,70 @@ try:
 except u.UpdateError as e:
     assert "webui" in str(e), e
 
+# --- webui build in staging -----------------------------------------------------
+# A real GitHub zipball is source-only: no built dist. The staged tree must get one from a local build.
+def source_entries():
+    e = {k: v for k, v in valid_entries().items() if not k.startswith(TOP + "/webui")}
+    e[TOP + "/webui/package.json"] = (b"{}", 0o644)
+    return e
+
+
+class R:
+    def __init__(self, rc=0, stderr="", stdout=""):
+        self.returncode, self.stderr, self.stdout = rc, stderr, stdout
+
+
+class FakeRun:
+    """Records pnpm calls; the build step creates webui/dist. fail=N makes call N (0-based) fail."""
+    def __init__(self, fail=None):
+        self.calls, self.fail = [], fail
+
+    def __call__(self, cmd, cwd=None, **kw):
+        self.calls.append((list(cmd), cwd))
+        if self.fail is not None and len(self.calls) - 1 == self.fail:
+            return R(1, stderr="boom\nsecond line\n")
+        if cmd[-1] == "install":
+            os.makedirs(os.path.join(cwd, "node_modules", ".pnpm"), exist_ok=True)
+        elif cmd[-1] == "build":
+            os.makedirs(os.path.join(cwd, "dist"), exist_ok=True)
+        return R()
+
+
+real_which = u.shutil.which
+real_run = u.subprocess.run
+try:
+    u.shutil.which = lambda name: "/usr/bin/pnpm" if name == "pnpm" else None
+    # a source-only release is staged and its webui built in place with pnpm
+    fake = FakeRun()
+    u.subprocess.run = fake
+    make_zip(os.path.join(T, "src.zip"), source_entries())
+    dest = u.stage_release(os.path.join(T, "src.zip"), os.path.join(T, "src"))
+    assert os.path.isdir(os.path.join(dest, "webui", "dist")), "build did not produce dist"
+    assert [c[0] for c in fake.calls] == [
+        ["/usr/bin/pnpm", "install", "--frozen-lockfile"],
+        ["/usr/bin/pnpm", "build"],
+    ], fake.calls
+    assert all(c[1] == os.path.join(dest, "webui") for c in fake.calls), fake.calls
+    assert not os.path.exists(os.path.join(dest, "webui", "node_modules")), "node_modules leaked into staging"
+    # a failing build step is rejected with its output tail
+    u.subprocess.run = FakeRun(fail=1)
+    try:
+        u.stage_release(os.path.join(T, "src.zip"), os.path.join(T, "srcfail"))
+        raise SystemExit("failing webui build was not rejected")
+    except u.UpdateError as e:
+        assert "failed" in str(e) and "boom" in str(e), e
+    # without pnpm the update is rejected with a readable manual-update message
+    u.shutil.which = lambda name: None
+    make_zip(os.path.join(T, "nopnpm.zip"), source_entries())
+    try:
+        u.stage_release(os.path.join(T, "nopnpm.zip"), os.path.join(T, "nopnpm"))
+        raise SystemExit("source-only release without pnpm was not rejected")
+    except u.UpdateError as e:
+        assert "pnpm" in str(e) and "webui" in str(e), e
+finally:
+    u.shutil.which = real_which
+    u.subprocess.run = real_run
+
 # --- nord repo metadata parsing (offline, canned responses) -----------------------
 import gzip as _gzip
 
