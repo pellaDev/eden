@@ -22,7 +22,8 @@ type State = { vpn_up: boolean; mesh_ip?: string | null; services: Service[]; de
 type Change = State & { applied: boolean };
 type RemoteState = { peers_ok: boolean; services: RemoteService[]; peers: RemotePeer[] };
 
-const fullRow = { gridColumn: "1 / -1" } as const;
+// PDS's grid contract: a direct child that must stretch over every column carries data-span="all".
+const fullRow = { "data-span": "all" } as const;
 
 export default function Services() {
   const { t } = useT();
@@ -218,7 +219,7 @@ export default function Services() {
 
   return (
     <>
-      <div style={fullRow}>
+      <div {...fullRow}>
         <PageHeader
           title={t("services.title")}
           subtitle={state.vpn_up ? t("services.subtitleUp") : t("services.subtitleDown")}
@@ -231,13 +232,13 @@ export default function Services() {
       </div>
 
       {error && (
-        <div style={fullRow}>
+        <div {...fullRow}>
           <Feedback error={error} />
         </div>
       )}
 
       {state.services.length === 0 && (
-        <div style={fullRow}>
+        <div {...fullRow}>
           <Empty>
             <EmptyHeader>
               <EmptyDescription>{t("services.empty")}</EmptyDescription>
@@ -277,7 +278,7 @@ export default function Services() {
         />
       ))}
 
-      <div style={{ ...fullRow, paddingTop: "1rem" }}>
+      <div {...fullRow} style={{ paddingTop: "1rem" }}>
         <PageHeader
           title={t("services.remoteTitle")}
           subtitle={t("services.remoteSubtitle")}
@@ -289,7 +290,7 @@ export default function Services() {
         />
       </div>
       {remote && remote.services.length === 0 && (
-        <div style={fullRow}>
+        <div {...fullRow}>
           <Empty>
             <EmptyHeader>
               <EmptyDescription>{t("services.remoteEmpty")}</EmptyDescription>

@@ -660,15 +660,21 @@ UPDATE_MARKER = os.path.join(EDEN_RUN, "update_request.json")
 
 
 @app.get("/api/update/status")
-def update_status():
+def update_status(fresh: int = 0):
+    """fresh=1 skips the cached metadata, so the page can run a check on demand."""
+    force = bool(fresh)
     out = {"eden": {}, "nordvpn": {}}
     try:
-        latest = eden_update.latest_eden_release()
+        latest = eden_update.latest_eden_release(force)
         installed = read_version()
+        # A development tree (no .git under EDEN_HOME) keeps its own version counter, which is not comparable to
+        # the release tag scheme; self-update applies to installs from a release.
+        dev = not os.path.isdir(os.path.join(EDEN_HOME, ".git"))
         out["eden"] = {
             "installed": installed,
             "latest": latest["tag"].lstrip("v"),
-            "available": eden_update.compare_versions(latest["tag"], installed) > 0,
+            "available": (not dev) and eden_update.compare_versions(latest["tag"], installed) > 0,
+            "dev": dev,
         }
     except Exception as e:
         out["eden"]["error"] = str(e) if isinstance(e, eden_update.UpdateError) else say("update_check_failed")
@@ -677,7 +683,7 @@ def update_status():
         if inst is None:
             out["nordvpn"] = {"installed": None, "latest": None, "available": False}
         else:
-            repo = eden_update.nordvpn_repo_latest()
+            repo = eden_update.nordvpn_repo_latest(force)
             out["nordvpn"] = {
                 "installed": inst["version"],
                 "latest": repo["version"],

@@ -60,7 +60,7 @@ def compare_versions(a, b):
     return (ka > kb) - (ka < kb)
 
 
-def latest_eden_release():
+def latest_eden_release(force=False):
     """The latest published GitHub release: {'tag': 'vX', 'zipball': url}."""
     def fetch():
         data = json.loads(http_get(GITHUB_LATEST_URL, 15))
@@ -69,10 +69,11 @@ def latest_eden_release():
         if not tag or not zipball.startswith("https://"):
             raise UpdateError("GitHub did not return a valid release")
         return {"tag": tag, "zipball": zipball}
-    return _cached("github", 60, fetch)
+    return _cached("github", 60, fetch, force)
 
 
-def _cached(name, ttl, fn):
+def _cached(name, ttl, fn, force=False):
+    """Cached check result. force skips the cache: that is what the "Check" button in the page asks for."""
     now = time.time()
     hit = _cache.get(name)
     if hit and now - hit[0] < ttl:
@@ -136,9 +137,9 @@ def _repo_metadata():
     return {"epoch": best_key[0], "version": best_version}
 
 
-def nordvpn_repo_latest():
+def nordvpn_repo_latest(force=False):
     """The newest published version of the 'nordvpn' package in Nord's yum repo (HTTP only)."""
-    return _cached("nordrepo", 120, _repo_metadata)
+    return _cached("nordrepo", 120, _repo_metadata, force)
 
 
 def nordvpn_update_available(installed, repo):

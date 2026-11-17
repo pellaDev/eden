@@ -19,12 +19,16 @@ If an agent is doing the install, read [agent-install.md](agent-install.md) befo
 
 ## What Eden owns
 
-Eden starts and stops `nordvpnd` by itself. While Eden is down, `nordvpn` commands fail with the missing-socket
-message: that is the expected behaviour, not a broken install, and the daemon must not be started by hand.
+Eden starts and stops `nordvpnd` by itself, and the install disables its boot-time autostart, so the daemon lives
+only while Eden runs. While Eden is down, `nordvpn` commands fail with the missing-socket message: that is the
+expected behaviour, not a broken install, and the daemon must not be started by hand.
 
-Eden owns the Meshnet side. It never runs `nordvpn set meshnet`, never connects or disconnects a peer, never edits a
-peer's permissions. The login, the account and the settings named above stay with the user. Eden filters only the
-Meshnet interface: nothing is added on the local network to "complete" it, and the LAN is not protected by Eden.
+Eden owns as much of the NordVPN command line as it can, the Meshnet side above all: it turns Meshnet on while it
+runs and off when it stops, adds linked devices untrusted, grants and revokes each device's permissions and ports,
+and removes a peer when the user deletes the device. It never logs in or touches the account, keeps Routing, Kill
+Switch and Auto-connect off (it refuses to start otherwise), and never runs `nordvpn connect`: a peer's VPN
+connection stays with the user. Eden filters only the Meshnet interface: nothing is added on the local network to
+"complete" it, and the LAN is not protected by Eden.
 
 ## Install
 
@@ -39,7 +43,8 @@ It runs as your normal user and uses `sudo` for the root part only:
 3. installs the root helper to `/usr/local/libexec/eden/` (root-owned), `/etc/eden/allowed_ports` (only 8443) and
    `/etc/sudoers.d/eden`, which lets your user run that one helper without a password and nothing else (the rule is
    checked with `visudo` before it is installed);
-4. builds the web UI with `pnpm` when `webui/dist` is missing.
+4. disables the boot-time autostart of `nordvpnd` (service and socket), so the daemon lives only while Eden runs;
+5. builds the web UI with `pnpm` when `webui/dist` is missing.
 
 Two things worth knowing about this step:
 
@@ -57,8 +62,18 @@ Two things worth knowing about this step:
 ```
 
 Without arguments it starts everything and stays in the terminal; closing the terminal or pressing Ctrl+C stops
-everything and removes the rules. Open `http://127.0.0.1:8780`. Other commands: `./start.sh up`, `down`, `vpn-up`,
-`vpn-down`, `vpn-reload`, `local-up`, `local-down`, `status`.
+everything and removes the rules, Nord included: Meshnet off, the daemon stopped through the helper, the rules
+deleted. The same happens when the last managed process dies, so a crash closes Nord too.
+Open `http://127.0.0.1:8780`. Other commands: `./start.sh up`, `down`, `vpn-up`, `vpn-down`, `vpn-reload`,
+`local-up`, `local-down`, `status`.
+
+Two limits of a shell, worth knowing:
+
+- `nordvpnd` runs as root, so this terminal closes it only through the helper; a plain `kill` reaches nothing
+  Nord. The last lines `vpn-down` prints are verification of that, not another attempt.
+- A shell cannot run code after it is killed with `SIGKILL`, so a launcher killed that way closes nothing by
+  itself. The next `./start.sh` closes what that run left behind and refuses to start while another launcher is
+  still alive; from another shell, `./start.sh down` is the same thing on demand.
 
 **First run, in this order:** log in to Nord, reboot, `./install.sh`, then `./start.sh local-up` (the admin page alone,
 nothing on the firewall yet), add a device and a service in the page, and only then `./start.sh`. With an empty
@@ -87,7 +102,9 @@ user is sent to Eden's dashboard.
 ## Update
 
 Replace the files, run `./install.sh` again (it reinstalls the helper), rebuild the web UI if `webui/` changed
-(`cd webui && pnpm install && pnpm build`) and restart Eden.
+(`cd webui && pnpm install && pnpm build`) and restart Eden. After an update of the NordVPN package itself, check
+that the autostart is still off (`systemctl is-enabled nordvpnd.service` should say `disabled`); if the package
+re-enabled it, run `./install.sh` again.
 
 ## Uninstall
 

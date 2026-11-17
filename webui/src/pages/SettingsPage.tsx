@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowUpCircle, RotateCw } from "lucide-react";
+import { ArrowUpCircle, Github, RotateCw } from "lucide-react";
 import { Alert, AlertDescription } from "@workspace/pds/components/ui/alert";
+import { Avatar, AvatarFallback } from "@workspace/pds/components/ui/avatar";
 import { Button } from "@workspace/pds/components/ui/button";
 import { Card } from "@workspace/pds/components/ui/card";
 import { Field } from "@workspace/pds/components/ui/field";
@@ -149,13 +150,28 @@ export default function SettingsPage() {
     setError(reason);
   }, []);
 
-  // Update checks (Eden itself + NordVPN). The backend caches the metadata, so a fresh fetch per visit is cheap.
-  const loadUpdates = useCallback(() => {
-    updateStatus().then(setUpdates).catch(() => undefined);
+  // Update checks (Eden itself + NordVPN). The backend caches the metadata, so mounting the page is cheap;
+  // "Check" forces a fresh comparison, and "Update" applies it when there is one.
+  const [checking, setChecking] = useState<string | null>(null);
+  const loadUpdates = useCallback((fresh = false) => {
+    updateStatus(fresh).then(setUpdates).catch(() => undefined);
   }, []);
   useEffect(() => {
     loadUpdates();
   }, [loadUpdates]);
+
+  const check = async (who: "eden" | "nordvpn") => {
+    setChecking(who);
+    setError(null);
+    try {
+      setUpdates(await updateStatus(true));
+      toast({ description: t("settings.checkDone") });
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setChecking(null);
+    }
+  };
 
   const edenUpdate = async () => {
     setUpdating("eden");
@@ -194,6 +210,157 @@ export default function SettingsPage() {
   return (
     <PageStack>
       <h1 className="text-xl font-semibold mb-4">{t("settings.title")}</h1>
+
+      <h2 className="pt-4 text-sm font-semibold">{t("settings.computerTitle")}</h2>
+      <Card>
+        <ItemGroup>
+          <Item size="sm">
+            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
+              <ItemTitle>{t("settings.hostTitle")}</ItemTitle>
+              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
+                {t("settings.hostDescription")}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              {/* The page sits on the "alternative" surface; fields belong on "base" */}
+              <div data-pds-surface="base" style={{ display: "contents" }}>
+                <Field
+                  size={fieldSize}
+                  label={t("common.name")}
+                  value={hostValue}
+                  maxLength={32}
+                  state={hostValid ? "default" : "error"}
+                  onChange={(e) => setHostDraft(e.target.value)}
+                />
+              </div>
+              <Button variant="default" size="small" disabled={busy || !hostValid || hostValue.trim() === hostName} onClick={saveHost}>
+                {t("common.save")}
+              </Button>
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </Card>
+
+      {remote && (
+        <>
+          <h2 className="pt-4 text-sm font-semibold">{t("settings.edenTitle")}</h2>
+          <Card>
+            <ItemGroup>
+              <Item size="sm">
+                <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
+                  <ItemTitle>{t("settings.restartTitle")}</ItemTitle>
+                  <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
+                    {t("settings.restartDescription")}
+                    {remote.restart_available === false && t("settings.restartUnavailable")}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Confirm
+                    destructive
+                    title={t("settings.restartConfirmTitle")}
+                    description={t("settings.restartConfirmDescription")}
+                    actionLabel={t("settings.restartAction")}
+                    onConfirm={restart}
+                    trigger={(open) => (
+                      <Button variant="destructive" size="small" disabled={busy || !remote.restart_available} onClick={open}>
+                        <RotateCw /> {t("settings.restartTitle")}
+                      </Button>
+                    )}
+                  />
+                </ItemActions>
+              </Item>
+            </ItemGroup>
+          </Card>
+        </>
+      )}
+
+      <h2 className="pt-4 text-sm font-semibold">{t("settings.updatesTitle")}</h2>
+      <Card>
+        <ItemGroup>
+          <Item size="sm">
+            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
+              <ItemTitle>{t("settings.edenUpdateTitle", { installed: updates?.eden.installed ?? "?" })}</ItemTitle>
+              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
+                {updates?.eden.dev
+                  ? t("settings.edenDevTree", { latest: updates.eden.latest ?? "?" })
+                  : updates?.eden.available && updates.eden.latest
+                    ? t("settings.edenUpdateDescription", { latest: updates.eden.latest })
+                    : t("settings.updateUpToDate")}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              {/* Eden on GitHub, in another tab */}
+              <a
+                href="https://github.com/pellaDev/eden"
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("settings.githubRepo")}
+                aria-label={t("settings.githubRepo")}
+                style={{ display: "inline-flex" }}
+              >
+                <Avatar size="xs" shape="roundedSquare" interactive="interactive" style={{ width: "1.75rem", height: "1.75rem" }}>
+                  <AvatarFallback aria-hidden="true">
+                    <Github />
+                  </AvatarFallback>
+                </Avatar>
+              </a>
+              <Button variant="default" size="small" disabled={busy || checking !== null} onClick={() => void check("eden")}>
+                <RotateCw /> {checking === "eden" ? t("settings.checking") : t("settings.checkAction")}
+              </Button>
+              {updates?.eden.available && updates.eden.latest ? (
+
+                <Confirm
+                  title={t("settings.edenUpdateConfirmTitle", { latest: updates.eden.latest })}
+                  description={t("settings.edenUpdateConfirmDescription")}
+                  actionLabel={t("settings.updateAction")}
+                  onConfirm={edenUpdate}
+                  trigger={(open) => (
+                    <Button variant="default" size="small" disabled={busy || updating !== null} onClick={open}>
+                      <ArrowUpCircle /> {updating === "eden" ? t("settings.edenUpdating") : t("settings.updateAction")}
+                    </Button>
+                  )}
+                />
+              ) : updates?.eden.dev ? (
+                <Tag variant="default">{t("settings.edenDevTag")}</Tag>
+              ) : (
+                <Tag variant="default">{t("settings.upToDate")}</Tag>
+              )}
+            </ItemActions>
+          </Item>
+          <ItemSeparator />
+          <Item size="sm">
+            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
+              <ItemTitle>{t("settings.nordvpnUpdateTitle", { installed: updates?.nordvpn.installed ?? "?" })}</ItemTitle>
+              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
+                {updates?.nordvpn.available && updates.nordvpn.latest
+                  ? t("settings.nordvpnUpdateDescription", { latest: updates.nordvpn.latest })
+                  : t("settings.updateUpToDate")}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button variant="default" size="small" disabled={busy || checking !== null} onClick={() => void check("nordvpn")}>
+                <RotateCw /> {checking === "nordvpn" ? t("settings.checking") : t("settings.checkAction")}
+              </Button>
+              {updates?.nordvpn.available && updates.nordvpn.latest ? (
+
+                <Confirm
+                  title={t("settings.nordvpnUpdateConfirmTitle", { latest: updates.nordvpn.latest })}
+                  description={t("settings.nordvpnUpdateConfirmDescription")}
+                  actionLabel={t("settings.updateAction")}
+                  onConfirm={nordvpnUpdate}
+                  trigger={(open) => (
+                    <Button variant="default" size="small" disabled={busy || updating !== null} onClick={open}>
+                      <ArrowUpCircle /> {updating === "nordvpn" ? t("settings.nordvpnUpdating") : t("settings.updateAction")}
+                    </Button>
+                  )}
+                />
+              ) : (
+                <Tag variant="default">{t("settings.upToDate")}</Tag>
+              )}
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </Card>
 
       <Card>
         <ItemGroup>
@@ -248,36 +415,6 @@ export default function SettingsPage() {
             </ItemContent>
             <ItemActions>
               <Tag variant="default">v.{__PDS_VERSION__}</Tag>
-            </ItemActions>
-          </Item>
-        </ItemGroup>
-      </Card>
-
-      <h2 className="pt-4 text-sm font-semibold">{t("settings.computerTitle")}</h2>
-      <Card>
-        <ItemGroup>
-          <Item size="sm">
-            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
-              <ItemTitle>{t("settings.hostTitle")}</ItemTitle>
-              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
-                {t("settings.hostDescription")}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              {/* The page sits on the "alternative" surface; fields belong on "base" */}
-              <div data-pds-surface="base" style={{ display: "contents" }}>
-                <Field
-                  size={fieldSize}
-                  label={t("common.name")}
-                  value={hostValue}
-                  maxLength={32}
-                  state={hostValid ? "default" : "error"}
-                  onChange={(e) => setHostDraft(e.target.value)}
-                />
-              </div>
-              <Button variant="default" size="small" disabled={busy || !hostValid || hostValue.trim() === hostName} onClick={saveHost}>
-                {t("common.save")}
-              </Button>
             </ItemActions>
           </Item>
         </ItemGroup>
@@ -376,98 +513,7 @@ export default function SettingsPage() {
           {enroll && !enroll.remote_running && <p className="text-xs text-muted-foreground">{t("settings.vpnNeeded")}</p>}
         </>
       )}
-      {remote && (
-        <>
-          <h2 className="pt-4 text-sm font-semibold">{t("settings.edenTitle")}</h2>
-          <Card>
-            <ItemGroup>
-              <Item size="sm">
-                <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
-                  <ItemTitle>{t("settings.restartTitle")}</ItemTitle>
-                  <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
-                    {t("settings.restartDescription")}
-                    {remote.restart_available === false && t("settings.restartUnavailable")}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Confirm
-                    destructive
-                    title={t("settings.restartConfirmTitle")}
-                    description={t("settings.restartConfirmDescription")}
-                    actionLabel={t("settings.restartAction")}
-                    onConfirm={restart}
-                    trigger={(open) => (
-                      <Button variant="destructive" size="small" disabled={busy || !remote.restart_available} onClick={open}>
-                        <RotateCw /> {t("settings.restartTitle")}
-                      </Button>
-                    )}
-                  />
-                </ItemActions>
-              </Item>
-            </ItemGroup>
-          </Card>
-        </>
-      )}
-      <h2 className="pt-4 text-sm font-semibold">{t("settings.updatesTitle")}</h2>
-      <Card>
-        <ItemGroup>
-          <Item size="sm">
-            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
-              <ItemTitle>{t("settings.edenUpdateTitle", { installed: updates?.eden.installed ?? "?" })}</ItemTitle>
-              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
-                {updates?.eden.available && updates.eden.latest
-                  ? t("settings.edenUpdateDescription", { latest: updates.eden.latest })
-                  : t("settings.updateUpToDate")}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              {updates?.eden.available && updates.eden.latest ? (
-                <Confirm
-                  title={t("settings.edenUpdateConfirmTitle", { latest: updates.eden.latest })}
-                  description={t("settings.edenUpdateConfirmDescription")}
-                  actionLabel={t("settings.updateAction")}
-                  onConfirm={edenUpdate}
-                  trigger={(open) => (
-                    <Button variant="default" size="small" disabled={busy || updating !== null} onClick={open}>
-                      <ArrowUpCircle /> {updating === "eden" ? t("settings.edenUpdating") : t("settings.updateAction")}
-                    </Button>
-                  )}
-                />
-              ) : (
-                <Tag variant="default">{t("settings.upToDate")}</Tag>
-              )}
-            </ItemActions>
-          </Item>
-          <ItemSeparator />
-          <Item size="sm">
-            <ItemContent style={{ flex: "1 1 16rem", minWidth: 0 }}>
-              <ItemTitle>{t("settings.nordvpnUpdateTitle", { installed: updates?.nordvpn.installed ?? "?" })}</ItemTitle>
-              <ItemDescription style={{ display: "block", overflow: "visible", WebkitLineClamp: "none" }}>
-                {updates?.nordvpn.available && updates.nordvpn.latest
-                  ? t("settings.nordvpnUpdateDescription", { latest: updates.nordvpn.latest })
-                  : t("settings.updateUpToDate")}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              {updates?.nordvpn.available && updates.nordvpn.latest ? (
-                <Confirm
-                  title={t("settings.nordvpnUpdateConfirmTitle", { latest: updates.nordvpn.latest })}
-                  description={t("settings.nordvpnUpdateConfirmDescription")}
-                  actionLabel={t("settings.updateAction")}
-                  onConfirm={nordvpnUpdate}
-                  trigger={(open) => (
-                    <Button variant="default" size="small" disabled={busy || updating !== null} onClick={open}>
-                      <ArrowUpCircle /> {updating === "nordvpn" ? t("settings.nordvpnUpdating") : t("settings.updateAction")}
-                    </Button>
-                  )}
-                />
-              ) : (
-                <Tag variant="default">{t("settings.upToDate")}</Tag>
-              )}
-            </ItemActions>
-          </Item>
-        </ItemGroup>
-      </Card>
+
       <Feedback error={error} />
       {restarting && <RestartOverlay onGiveUp={giveUpRestart} />}
     </PageStack>

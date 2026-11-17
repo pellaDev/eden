@@ -48,6 +48,37 @@ spawn() { # name, command...
 # True if the pid file exists and the process is alive.
 alive() { [[ -f "$EDEN_RUN/$1.pid" ]] && kill -0 "$(cat "$EDEN_RUN/$1.pid")" 2>/dev/null; }
 
+# True while at least one managed process is still alive: every one of them is started through spawn(),
+# which records its pid here. The launcher marker itself is not a managed process.
+managed_alive() {
+  local f pid
+  for f in "$EDEN_RUN"/*.pid; do
+    [[ -f "$f" && "$f" != "$EDEN_RUN/eden.pid" ]] || continue
+    pid="$(cat "$f")"
+    kill -0 "$pid" 2>/dev/null && return 0
+  done
+  return 1
+}
+
+# A launcher killed with SIGKILL cannot run its EXIT trap, so that run can leave Nord and the rules open.
+# Nothing can run after a shell is dead, so this is the closest a shell can do: close what a dead launcher
+# left behind at the next entry point, before starting anything. A marker pointing at a launcher that is
+# still alive means two launchers would fight over the same rules, so nothing is started or stopped there.
+stale_guard() {
+  local marker="$EDEN_RUN/eden.pid" pid
+  [[ -f "$marker" ]] || return 0
+  pid="$(cat "$marker")"
+  [[ "$pid" == "$$" ]] && return 0   # this very launcher
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "another Eden launcher is already running (pid $pid): nothing is started or stopped here" >&2
+    return 1
+  fi
+  echo "launcher marker is stale (pid $pid is gone): closing what that run left behind"
+  down
+  rm -f "$marker"
+  return 0
+}
+
 
 status() {
   local n
@@ -187,8 +218,11 @@ vpn_down() {
   nord set meshnet off
   helper daemon-stop
   helper nft-delete
-  echo "== leftovers (VPN) =="
-  pgrep -af 'nordvpnd|norduserd|nordfileshare'
+  echo "== closed? (verification, not action) =="
+  # A plain kill only reaches what this user started. nordvpnd runs as root, so the only way Eden has of
+  # closing it is the helper, already called above; what follows is proof, not another attempt.
+  systemctl is-active --quiet nordvpnd && echo "LEFT: nordvpnd is still active" || echo "nordvpnd: inactive"
+  pgrep -af 'nordvpnd|norduserd|nordfileshare' || echo 'no Nord process left'
   ip -br addr show "$MESH_IFACE" 2>&1 | head -1
   helper nft-list 2>&1
   echo "-- residual Meshnet-facing ports --"
@@ -217,6 +251,7 @@ vpn_reload() {
 
 
 up() {
+  stale_guard || return 1
   apply_pending_update || return 1
   # Convenience: the VPN group and Eden local together, in one command - what a launcher or a double-click
   # shortcut should invoke. Each group still fails closed on its own; a local-UI failure after the VPN came up
@@ -260,10 +295,13 @@ foreground_all() {
       RESTARTING=0
       echo "Eden restarted."
     fi
-    # Holds the terminal while any managed process (every one is a background job of this shell) is alive;
-    # when none is left there is nothing to hold it for. A 1 s poll instead of "wait" so that no signal can slip
-    # in between the flag check and the wait.
-    [[ -n "$(jobs -p)" ]] || break
+    # Holds the terminal while any managed process is alive; when none is left there is nothing to hold it
+    # for, so a crash of the last one ends the loop here and the EXIT trap above closes Nord too. Checking
+    # the recorded pids instead of "jobs -p" is what makes this work: a finished job is never reaped by this
+    # loop, so "jobs -p" keeps listing it forever (checked on this host's bash 5.3.9) and the loop would run
+    # for ever after a crash. A 1 s poll instead of "wait" so that no signal can slip in between the flag
+    # check and the wait.
+    managed_alive || break
     sleep 1
   done
 }

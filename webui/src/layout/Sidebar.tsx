@@ -13,14 +13,7 @@ import {
   SidebarMenuButton,
   SidebarGroup,
 } from "@workspace/pds/components/ui/sidebar";
-import {
-  Template,
-  TemplateHeader,
-  TemplateSubHeader,
-  TemplateBody,
-  TemplateCanvas,
-  TemplateFooter,
-} from "@workspace/pds/components/ui/template";
+import { Template, TemplateBody, TemplateCanvas, TemplateFooter } from "@workspace/pds/components/ui/template";
 import { Badge } from "@workspace/pds/components/ui/badge";
 import { ScrollArea } from "@workspace/pds/components/ui/scroll-area";
 import { Toaster } from "@workspace/pds/components/ui/toaster";
@@ -47,10 +40,11 @@ import {
 import { Row } from "@workspace/pds/components/ui/layout";
 import { useIsMobile } from "@workspace/pds/hooks/use-mobile";
 import { Bell, Home, ShieldCheck, MonitorSmartphone, Waypoints, ScrollText, Settings } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "../lib/api";
 import Logo from "../components/Logo";
 import { usePoll } from "../lib/usePoll";
+import { useCanvasColumns } from "../lib/useCanvasColumns";
 import { useLive } from "../lib/live";
 import { useSessionAvailable, useVersion } from "../lib/platform";
 import { useT, type TextKey } from "../lib/i18n";
@@ -146,11 +140,14 @@ function EdenMobileNav() {
 }
 
 // Pages whose content is a set of cards laid out directly by the PDS "grid" canvas. Everything else sits in a
-// centered column of fixed width. The columns are fluid (cards 18-24rem wide) and the grid is capped at
-// GRID_MAX_COLUMNS and centered: on an ultrawide screen the page header (title left, action right) stays
-// right above the cards instead of at the far edges of the monitor.
+// centered column of fixed width. The number of columns follows the width of the canvas (useCanvasColumns), from
+// one column on a phone to GRID_MAX_COLUMNS, and a column is never narrower than GRID_MIN_CARD_REM or wider than
+// GRID_MAX_CARD_REM: the grid stays capped and centered, so on an ultrawide screen the page header (title left,
+// action right) stays right above the cards instead of at the far edges of the monitor.
 const GRID_PAGES = ["/", "/services"];
 const GRID_MAX_COLUMNS = 4;
+const GRID_MIN_CARD_REM = 18;
+const GRID_MAX_CARD_REM = 24;
 
 // Label key of the current page for the subheader (settings is not in NAV: it is pinned in the footer).
 const pageLabelKey = (pathname: string): TextKey | null =>
@@ -186,26 +183,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const grid = GRID_PAGES.includes(pathname);
   const isMobile = useIsMobile();
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const columns = useCanvasColumns(canvasRef, GRID_MIN_CARD_REM, GRID_MAX_COLUMNS);
   const { t } = useT();
   const labelKey = pageLabelKey(pathname);
   const version = useVersion();
   return (
-    <Template>
-      <TemplateHeader>
-        <Logo />
-        <div className="flex flex-col leading-tight">
-          <span className="font-semibold">Eden</span>
-          <span className="text-xs text-muted-foreground">{version && `v${version}`}</span>
-        </div>
-        {isMobile && <EdenMobileNav />}
-      </TemplateHeader>
-
-      <TemplateBody
-        defaultSidebarSize={12}
-        minSidebarSize={9}
-        subHeader={
-          <TemplateSubHeader>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", width: "100%" }}>
+    <Template
+      header={
+        <>
+          <Logo />
+          <div className="flex flex-col leading-tight">
+            <span className="font-semibold">Eden</span>
+            <span className="text-xs text-muted-foreground">{version && `v${version}`}</span>
+          </div>
+          {isMobile && <EdenMobileNav />}
+        </>
+      }
+      subHeader={
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", width: "100%" }}>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -220,9 +216,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </BreadcrumbList>
             </Breadcrumb>
             <LiveTrafficSwitch />
-            </div>
-          </TemplateSubHeader>
-        }
+          </div>
+      }
+    >
+      <TemplateBody
+        defaultSidebarSize={12}
+        minSidebarSize={9}
         sidebar={
           isMobile ? undefined : (
             // SidebarProvider only supplies context here; reset its min-h-svh so it fits the panel.
@@ -241,6 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           style={{ backgroundColor: "var(--pds-surface-bg)" }}
         >
           <TemplateCanvas
+            ref={canvasRef}
             layout={grid ? "grid" : "center"}
             style={{
               height: "auto",
@@ -249,10 +249,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               flex: "1 0 auto",
               ...(grid
                 ? {
-                    gridTemplateColumns: "repeat(auto-fill, minmax(18rem, 24rem))",
-                    justifyContent: "center",
-                    // N columns + the gaps between them + the canvas padding on both sides (both are PDS canvas variables)
-                    maxWidth: `calc(${GRID_MAX_COLUMNS} * 24rem + ${GRID_MAX_COLUMNS - 1} * var(--canvas-gap) + 2 * var(--canvas-padding))`,
+                    // PDS's own grid variant builds the columns from --canvas-columns, which is the measured count;
+                    // the cap (N columns + the gaps between them + the canvas padding on both sides, all PDS canvas
+                    // variables) is what keeps the cards from stretching past GRID_MAX_CARD_REM on an ultrawide screen.
+                    "--canvas-columns": columns,
+                    maxWidth: `calc(${GRID_MAX_COLUMNS} * ${GRID_MAX_CARD_REM}rem + ${GRID_MAX_COLUMNS - 1} * var(--canvas-gap) + 2 * var(--canvas-padding))`,
                     marginInline: "auto",
                   }
                 : {}),

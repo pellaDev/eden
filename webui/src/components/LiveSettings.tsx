@@ -14,6 +14,9 @@ import OnOff from "./OnOff";
 
 const wide = { display: "block", overflow: "visible", WebkitLineClamp: "none" } as const; // ItemDescription clamps to 2 lines
 const grow = { flex: "1 1 16rem", minWidth: 0 } as const;
+// Every number field in this block has the same width: twice the browser's default input width
+// (a size-20 input is 20ch), so the three fields line up. Capped to the row on a narrow screen.
+const fieldBox = { width: "40ch", maxWidth: "100%" } as const;
 // Same limits as the backend (MONITOR_LIMITS).
 const LIMITS = { refresh: [1, 60], presence: [5, 300], retention: [1, 35] } as const;
 const valid = (text: string, [lo, hi]: readonly [number, number]) => /^\d{1,4}$/.test(text.trim()) && Number(text) >= lo && Number(text) <= hi;
@@ -69,6 +72,7 @@ export default function LiveSettings() {
         <div data-pds-surface="base" style={{ display: "contents" }}>
           <Field
             size={fieldSize}
+            style={fieldBox}
             label={unit}
             type="number"
             inputMode="numeric"

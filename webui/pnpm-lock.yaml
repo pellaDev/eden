@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@workspace/pds':
         specifier: github:pellaDev/PDS#main
-        version: https://codeload.github.com/pellaDev/PDS/tar.gz/af0dc347c13ff465aba12626f66c69c50c74ce05(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(recharts@2.15.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: https://codeload.github.com/pellaDev/PDS/tar.gz/8518d495792084eb0dfbdab4c0c7a91bfb198fdd(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(recharts@2.15.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       lucide-react:
         specifier: ^0.400.0
         version: 0.400.0(react@18.3.1)
@@ -1140,9 +1140,9 @@ packages:
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
 
-  '@workspace/pds@https://codeload.github.com/pellaDev/PDS/tar.gz/af0dc347c13ff465aba12626f66c69c50c74ce05':
-    resolution: {tarball: https://codeload.github.com/pellaDev/PDS/tar.gz/af0dc347c13ff465aba12626f66c69c50c74ce05}
-    version: 1.10.1
+  '@workspace/pds@https://codeload.github.com/pellaDev/PDS/tar.gz/8518d495792084eb0dfbdab4c0c7a91bfb198fdd':
+    resolution: {tarball: https://codeload.github.com/pellaDev/PDS/tar.gz/8518d495792084eb0dfbdab4c0c7a91bfb198fdd}
+    version: 2.0.1
     peerDependencies:
       cmdk: ^1.1.1
       embla-carousel-react: ^8.6.0
@@ -2624,7 +2624,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@workspace/pds@https://codeload.github.com/pellaDev/PDS/tar.gz/af0dc347c13ff465aba12626f66c69c50c74ce05(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(recharts@2.15.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
+  '@workspace/pds@https://codeload.github.com/pellaDev/PDS/tar.gz/8518d495792084eb0dfbdab4c0c7a91bfb198fdd(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(recharts@2.15.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
     dependencies:
       '@hookform/resolvers': 3.10.0(react-hook-form@7.89.0(@types/react@18.3.31)(react@18.3.1))
       '@radix-ui/react-accordion': 1.2.20(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

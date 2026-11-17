@@ -7,7 +7,8 @@
 #   3. creates config/eden.json from config/eden.example.json when there is none (no device, no service);
 #   4. installs the root helper to /usr/local/libexec/eden (root-owned), the allowed-ports file /etc/eden/allowed_ports
 #      (8443 only, when there is none) and /etc/sudoers.d/eden, which lets YOUR user run that one helper without a
-#      password and nothing else; the rule is checked with visudo before it is installed;
+#      password and nothing else; the rule is checked with visudo before it is installed, and disables the
+#      boot-time autostart of nordvpnd (service and socket) so the daemon lives only while Eden runs;
 #   5. builds the web UI when pnpm is available and webui/dist is missing.
 # Nothing else outside this folder is touched. uninstall.sh reverses the root part.
 set -euo pipefail
@@ -55,6 +56,13 @@ echo "$USER_NAME ALL=(root) NOPASSWD: $HELPER_DST" >"$RULE"
 sudo visudo -cf "$RULE" >/dev/null || fail "the sudoers rule did not validate; nothing was installed."
 sudo install -m 440 -o root -g root "$RULE" /etc/sudoers.d/eden
 sudo -n "$HELPER_DST" ports-list >/dev/null || fail "the helper does not answer through sudo."
+# Nord must go up and down with Eden, always: disable the boot-time autostart of its daemon (the helper
+# starts and stops it). Skip a unit that is not installed.
+for unit in nordvpnd.service nordvpnd.socket; do
+  if systemctl list-unit-files "$unit" 2>/dev/null | grep -q "^$unit "; then
+    sudo systemctl disable "$unit"
+  fi
+done
 
 # --- 5. web UI
 if [[ ! -d webui/dist && -f webui/package.json ]]; then

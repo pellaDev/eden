@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.0 - NordVPN install defaults, dev-tree status, PDS 2.0.1 (2026-11-17)
+
+### NordVPN installation and lifecycle
+
+- `install.sh` now disables the boot-time autostart of the NordVPN daemon (`nordvpnd.service` and
+  `nordvpnd.socket`, when installed): the daemon goes up and down with Eden, always - Eden's own scripts start
+  and stop it.
+- `start.sh` gained a stale-launcher guard: if a previous run was killed so hard that its cleanup never ran,
+  the next entry point closes what that run left behind (the NordVPN state and the firewall rules) before
+  starting anything; a marker pointing at a still-alive launcher refuses to start or stop anything instead.
+
+### Self-update
+
+- A tree that is not a release install (no `.git` - the development copy) no longer reports "up to date":
+  Settings shows an explicit development state and says what the check actually compared.
+
+### Web UI
+
+- Settings: text fields accept 40 characters; the PDS version is shown next to the Eden version; the update rows
+  offer an explicit "Check" button that forces a fresh comparison; the Eden row carries the project avatar; the
+  Services grid scales from one to four columns with the window width.
+- The app shell uses the PDS 2.0 template API: header and subheader are props of `Template` (rendered in a
+  fixed order), not child elements.
+
+### Dependencies
+
+- PDS updated to 2.0.1, pinned by commit in `webui/pnpm-lock.yaml` (public repository, MIT).
+
 ## 0.2.0 - updates from the web UI (2026-11-16)
 
 Eden and its NordVPN dependency can now be checked and updated without leaving the dashboard. No token or secret is
